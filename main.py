@@ -80,50 +80,36 @@ if __name__ == '__main__':
     print(' >    exp:', args.env.expdir)
 
     # load model
+    # NOTE: args.model == arguments used here 
     model = None
+    model_args = {"sampling_rate": args.data.sampling_rate, "block_size": args.data.block_size}
     if cmd.model == 'SawSinSub':
-        model = SawSinSub(
-            sampling_rate=args.data.sampling_rate,
-            block_size=args.data.block_size,
+        model = SawSinSub(**model_args,
             n_mag_harmonic=args.model.n_mag_harmonic,
-            n_mag_noise=args.model.n_mag_noise,
-            n_harmonics=args.model.n_harmonics)
-
+            n_mag_noise   =args.model.n_mag_noise,
+            n_harmonics   =args.model.n_harmonics)
     elif cmd.model == 'Sins':
-        model = Sins(
-            sampling_rate=args.data.sampling_rate,
-            block_size=args.data.block_size,
-            n_harmonics=args.model.n_harmonics,
-            n_mag_noise=args.model.n_mag_noise)
-
+        model = Sins(**model_args,
+            n_harmonics  =args.model.n_harmonics,
+            n_mag_noise  =args.model.n_mag_noise)
     elif cmd.model == 'DWS':
-        model = DWS(
-            sampling_rate=args.data.sampling_rate,
-            block_size=args.data.block_size,
+        model = DWS(**model_args,
             num_wavetables=args.model.num_wavetables,
             len_wavetables=args.model.len_wavetables,
-            is_lpf=args.model.is_lpf)
-
+            is_lpf        =args.model.is_lpf)
     elif cmd.model == 'Full':
-        model = Full(
-            sampling_rate=args.data.sampling_rate,
-            block_size=args.data.block_size,
+        model = Full(**model_args,
             n_mag_harmonic=args.model.n_mag_harmonic,
-            n_mag_noise=args.model.n_mag_noise,
-            n_harmonics=args.model.n_harmonics)
-
+            n_mag_noise   =args.model.n_mag_noise,
+            n_harmonics   =args.model.n_harmonics)
     elif cmd.model == 'SawSub':
-        model = SawSub(
-            sampling_rate=args.data.sampling_rate,
-            block_size=args.data.block_size)
-
+        model = SawSub(**model_args)
     else:
         raise ValueError(f" [x] Unknown Model: {cmd.model}")
     
     # load parameters
     if cmd.model_ckpt:
-        model = utils.load_model_params(
-            cmd.model_ckpt, model, args.device)
+        model = utils.load_model_params(cmd.model_ckpt, model, args.device)
 
     # loss
     loss_func = HybridLoss(args.loss.n_ffts)
@@ -140,28 +126,16 @@ if __name__ == '__main__':
 
     # stage
     if cmd.stage == 'training':
-        train(args, model, loss_func, loader_train, loader_valid)
+        train( args, model, loss_func, loader_train, loader_valid)
     elif cmd.stage == 'validation':
-        output_dir = 'valid_gen'
-        if cmd.output_dir:
-            output_dir = cmd.output_dir
-        test(
-            args, 
-            model, 
-            loss_func, 
-            loader_valid, 
-            path_gendir=output_dir,
-            is_part=cmd.is_part)
+        output_dir = cmd.output_dir if cmd.output_dir else 'valid_gen'
+        test(  args, model, loss_func, loader_valid,
+            path_gendir=output_dir, is_part=cmd.is_part)
     elif cmd.stage == 'inference':
-        output_dir = 'infer_gen'
-        if cmd.output_dir:
-            output_dir = cmd.output_dir
-        render(
-            args, 
-            model, 
-            path_mel_dir=cmd.input_dir, 
-            path_gendir=output_dir,
-            is_part=cmd.is_part)
+        output_dir = cmd.output_dir if cmd.output_dir else 'infer_gen'
+        render(args, model,
+            path_mel_dir=cmd.input_dir,
+            path_gendir=output_dir, is_part=cmd.is_part)
     else:
-          raise ValueError(f" [x] Unkown Stage: {cmd.stage }")
+          raise ValueError(f" [x] Unkown Stage: {cmd.stage}")
     

@@ -12,16 +12,13 @@ from logger import utils
 
 
 def render(args, model, path_mel_dir, path_gendir='gen', is_part=False):
+    """Run inference."""
+
     print(' [*] rendering...')
     model.eval()
 
     # list files
-    files = utils.traverse_dir(
-        path_mel_dir, 
-        extension='npy', 
-        is_ext=False,
-        is_sort=True, 
-        is_pure=True)
+    files = utils.traverse_dir(path_mel_dir, extension='npy', is_ext=False, is_sort=True, is_pure=True)
     num_files = len(files)
     print(' > num_files:', num_files)
 
@@ -30,8 +27,9 @@ def render(args, model, path_mel_dir, path_gendir='gen', is_part=False):
         for fidx in range(num_files):
             fn = files[fidx]
             print('--------')
-            print('{}/{} - {}'.format(fidx, num_files, fn))
+            print(f'{fidx}/{num_files} - {fn}')
 
+            # Load
             path_mel = os.path.join(path_mel_dir, fn) + '.npy'
             mel = np.load(path_mel)
             mel = torch.from_numpy(mel).float().to(args.device).unsqueeze(0)
@@ -46,7 +44,6 @@ def render(args, model, path_mel_dir, path_gendir='gen', is_part=False):
                 path_pred_n = os.path.join(path_gendir, 'part', fn + '-noise.wav')
                 path_pred_h = os.path.join(path_gendir, 'part', fn + '-harmonic.wav')
             print(' > path_pred:', path_pred)
-            
             os.makedirs(os.path.dirname(path_pred), exist_ok=True)
             if is_part:
                 os.makedirs(os.path.dirname(path_pred_h), exist_ok=True)
@@ -65,6 +62,14 @@ def render(args, model, path_mel_dir, path_gendir='gen', is_part=False):
 
 
 def test(args, model, loss_func, loader_test, path_gendir='gen', is_part=False):
+    """Run evaluation/test.
+    
+    Returns:
+        test_loss     - Total loss
+        test_loss_mss - Multi-scale STFT loss
+        test_loss_f0  - fo loss
+    """
+
     print(' [*] testing...')
     print(' [*] output folder:', path_gendir)
     model.eval()
@@ -158,13 +163,14 @@ def test(args, model, loss_func, loader_test, path_gendir='gen', is_part=False):
 
 
 def train(args, model, loss_func, loader_train, loader_test):
+    """Train the vocoder."""
+
     # saver
     saver = Saver(args)
 
     # model size
-    params_count = utils.get_network_paras_amount({'model': model})
     saver.log_info('--- model size ---')
-    saver.log_info(params_count)
+    saver.log_info(utils.get_network_paras_amount({'model': model}))
 
     # optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.train.lr)
@@ -178,100 +184,65 @@ def train(args, model, loss_func, loader_train, loader_test):
     for epoch in range(args.train.epochs):
         for batch_idx, data in enumerate(loader_train):
             saver.global_step_increment()
-            optimizer.zero_grad()
 
-            # unpack data
+            # Batch unpacking
             for k in data.keys():
                 if k != 'name':
                     data[k] = data[k].to(args.device).float()
             
-            # forward
+            # Forward/Loss
+            optimizer.zero_grad()
             signal, f0_pred, _, _,  = model(data['mel'])
-
-            # loss
-            loss, (loss_mss, loss_f0) = loss_func(
-                signal, data['audio'], f0_pred, data['f0'])
-            
-            # handle nan loss
+            loss, (loss_mss, loss_f0) = loss_func(signal, data['audio'], f0_pred, data['f0'])
+            # Nan check
             if torch.isnan(loss):
                 raise ValueError(' [x] nan loss ')
-            else:
-                # backpropagate
-                loss.backward()
-                optimizer.step()
+            # Backward/Optim
+            loss.backward()
+            optimizer.step()
 
-            # log loss
+            # Logging of training
             if saver.global_step % args.train.interval_log == 0:
+                # Summary
                 saver.log_info(
                     'epoch: {}/{} {:3d}/{:3d} | {} | t: {:.2f} | loss: {:.6f} | time: {} | counter: {}'.format(
-                        epoch,
-                        args.train.epochs,
-                        batch_idx,
-                        num_batches,
-                        saver.expdir,
-                        saver.get_interval_time(),
-                        loss.item(),
-                        saver.get_total_time(),
-                        saver.global_step
-                    )
-                )
-                saver.log_info(
-                    ' > mss loss: {:.6f}, f0: {:.6f}'.format(
-                       loss_mss.item(),
-                       loss_f0.item(),
-                    )
-                )
-
+                        epoch, args.train.epochs, batch_idx, num_batches, saver.expdir, saver.get_interval_time(),
+                        loss.item(), saver.get_total_time(), saver.global_step
+                ))
+                saver.log_info(' > mss loss: {:.6f}, f0: {:.6f}'.format(loss_mss.item(), loss_f0.item()))
+                # Waveform statistics - min/max, mean, RMS
                 y, s = signal, data['audio']
                 saver.log_info(
                     "pred: max:{:.5f}, min:{:.5f}, mean:{:.5f}, rms: {:.5f}\n" \
                     "anno: max:{:.5f}, min:{:.5f}, mean:{:.5f}, rms: {:.5f}".format(
                             torch.max(y), torch.min(y), torch.mean(y), torch.mean(y** 2) ** 0.5,
                             torch.max(s), torch.min(s), torch.mean(s), torch.mean(s** 2) ** 0.5))
-
+                # Loss values
                 saver.log_value({
-                    'train loss': loss.item(), 
+                    'train loss':     loss.item(),
                     'train loss mss': loss_mss.item(),
-                    'train loss f0': loss_f0.item(),
+                    'train loss f0':  loss_f0.item(),
                 })
             
-            # validation
-            # if saver.global_step % args.train.interval_val == 0:
+            # Validation
             cur_hour = saver.get_total_time(to_str=False) // 3600
             if cur_hour != prev_save_time:
                 # save latest
-                saver.save_models(
-                        {'vocoder': model}, postfix=f'{saver.global_step}_{cur_hour}')
-
+                saver.save_models({'vocoder': model}, postfix=f'{saver.global_step}_{cur_hour}')
                 prev_save_time = cur_hour
                 # run testing set
-                path_testdir_runtime = os.path.join(
-                        args.env.expdir,
-                        'runtime_gen', 
-                        f'gen_{saver.global_step}_{cur_hour}')
-                test_loss, test_loss_mss, test_loss_f0 = test(
-                    args, model, loss_func, loader_test,
-                    path_gendir=path_testdir_runtime)
-                saver.log_info(
-                    ' --- <validation> --- \nloss: {:.6f}. mss loss: {:.6f}, f0: {:.6f}'.format(
-                        test_loss, test_loss_mss, test_loss_f0
-                    )
-                )
-
+                path_testdir_runtime = os.path.join(args.env.expdir, 'runtime_gen', f'gen_{saver.global_step}_{cur_hour}')
+                test_loss, test_loss_mss, test_loss_f0 = test(args, model, loss_func, loader_test, path_gendir=path_testdir_runtime)
+                saver.log_info(' --- <validation> --- \nloss: {:.6f}. mss loss: {:.6f}, f0: {:.6f}'.format(test_loss, test_loss_mss, test_loss_f0))
                 saver.log_value({
                     'valid loss': test_loss,
                     'valid loss mss': test_loss_mss,
                     'valid loss f0': test_loss_f0,
                 })
                 model.train()
-
                 # save best model
                 if test_loss < best_loss:
                     saver.log_info(' [V] best model updated.')
-                    saver.save_models(
-                        {'vocoder': model}, postfix='best')
+                    saver.save_models({'vocoder': model}, postfix='best')
                     test_loss = best_loss
-
                 saver.make_report()
-
-                          

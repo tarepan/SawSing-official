@@ -308,8 +308,7 @@ def frequency_filter(audio,
     return fft_convolve(audio, impulse_response, padding=padding, mel_scale_noise=mel_scale_noise)
 
 
-def linear_lookup(index,
-                  wavetable):
+def linear_lookup(index, wavetable):
     '''
     Args:
         index: B x T, value: [0, 1]

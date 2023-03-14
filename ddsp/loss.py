@@ -11,7 +11,8 @@ class HybridLoss(nn.Module):
         super().__init__()
         self.loss_mss_func = MSSLoss(n_ffts)
         self.f0_loss_func = F0L1Loss()
-        self.fo_slow_loss_func = F0SlowLoss()
+        # NOTE: Not used now
+        # self.fo_slow_loss_func = F0SlowLoss()
 
     def forward(self, y_pred, y_true, f0_pred, f0_true):
         loss_mss = self.loss_mss_func(y_pred, y_true)

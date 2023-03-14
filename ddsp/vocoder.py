@@ -12,13 +12,7 @@ from .core import scale_function, unit_to_hz2, frequency_filter, upsample
 
 
 class Full(nn.Module):
-    def __init__(self, 
-            sampling_rate,
-            block_size,
-            n_mag_harmonic,
-            n_mag_noise,
-            n_harmonics,
-            n_mels=80):
+    def __init__(self, sampling_rate, block_size, n_mag_harmonic, n_mag_noise, n_harmonics, n_mels=80):
         super().__init__()
 
         print(' [Model] Sinusoids Synthesiser, gt fo')
@@ -57,7 +51,7 @@ class Full(nn.Module):
         
         A           = scale_function(ctrls['A'])
         amplitudes  = scale_function(ctrls['amplitudes'])
-        src_param = scale_function(ctrls['harmonic_magnitude'])
+        src_param   = scale_function(ctrls['harmonic_magnitude'])
         noise_param = scale_function(ctrls['noise_magnitude'])
 
         amplitudes /= amplitudes.sum(-1, keepdim=True) # to distribution
@@ -73,28 +67,18 @@ class Full(nn.Module):
         # harmonic
         harmonic, final_phase = self.harmonic_synthsizer(
             pitch, amplitudes, initial_phase)
-        harmonic = frequency_filter(
-                        harmonic,
-                        src_param)
+        harmonic = frequency_filter(harmonic, src_param)
             
         # noise part
         noise = torch.rand_like(harmonic).to(noise_param) * 2 - 1
-        noise = frequency_filter(
-                        noise,
-                        noise_param)
+        noise = frequency_filter(noise, noise_param)
         signal = harmonic + noise
 
         return signal, f0, final_phase, (harmonic, noise)
 
 
 class SawSinSub(nn.Module):
-    def __init__(self, 
-            sampling_rate,
-            block_size,
-            n_mag_harmonic,
-            n_mag_noise,
-            n_harmonics,
-            n_mels=80):
+    def __init__(self, sampling_rate, block_size, n_mag_harmonic, n_mag_noise, n_harmonics, n_mels=80):
         super().__init__()
 
         print(' [Model] Sawtooth (with sinusoids) Subtractive Synthesiser')
@@ -112,8 +96,7 @@ class SawSinSub(nn.Module):
         self.mel2ctrl = Mel2Control(n_mels, split_map)
 
         # Harmonic Synthsizer
-        self.harmonic_amplitudes = nn.Parameter(
-            1. / torch.arange(1, n_harmonics + 1).float(), requires_grad=False)
+        self.harmonic_amplitudes = nn.Parameter(1. / torch.arange(1, n_harmonics + 1).float(), requires_grad=False)
         self.ratio = nn.Parameter(torch.tensor([0.4]).float(), requires_grad=False)
 
         self.harmonic_synthsizer = WaveGeneratorOscillator(
@@ -147,27 +130,18 @@ class SawSinSub(nn.Module):
 
         # harmonic
         harmonic, final_phase = self.harmonic_synthsizer(pitch, initial_phase)
-        harmonic = frequency_filter(
-                        harmonic,
-                        src_param)
+        harmonic = frequency_filter(harmonic, src_param)
 
         # noise part
         noise = torch.rand_like(harmonic).to(noise_param) * 2 - 1
-        noise = frequency_filter(
-                        noise,
-                        noise_param)
+        noise = frequency_filter(noise, noise_param)
         signal = harmonic + noise
 
         return signal, f0, final_phase, (harmonic, noise), # (src_param, noise_param)
 
 
 class Sins(nn.Module):
-    def __init__(self, 
-            sampling_rate,
-            block_size,
-            n_harmonics,
-            n_mag_noise,
-            n_mels=80):
+    def __init__(self, sampling_rate, block_size, n_harmonics, n_mag_noise, n_mels=80):
         super().__init__()
 
         print(' [Model] Sinusoids Synthesiser')
@@ -218,27 +192,19 @@ class Sins(nn.Module):
         amplitudes = upsample(amplitudes, self.block_size)
 
         # harmonic
-        harmonic, final_phase = self.harmonic_synthsizer(
-            pitch, amplitudes, initial_phase)
+        harmonic, final_phase = self.harmonic_synthsizer(pitch, amplitudes, initial_phase)
             
         # noise part
         noise = torch.rand_like(harmonic).to(noise_param) * 2 - 1
-        noise = frequency_filter(
-                        noise,
-                        noise_param)
+        noise = frequency_filter(noise, noise_param)
+
         signal = harmonic + noise
 
         return signal, f0, final_phase, (harmonic, noise) #, (noise_param, noise_param)
 
 
 class DWS(nn.Module):
-    def __init__(
-            self,
-            sampling_rate,
-            block_size,            
-            num_wavetables,
-            len_wavetables,
-            is_lpf=False):
+    def __init__( self, sampling_rate, block_size, num_wavetables, len_wavetables, is_lpf=False):
         super().__init__()
 
         print(' [Model] Wavetables Synthesiser, is_lpf:', is_lpf)
@@ -257,8 +223,7 @@ class DWS(nn.Module):
 
         # Harmonic Synthsizer
         self.wavetables = nn.Parameter(torch.randn(num_wavetables, len_wavetables))
-        self.harmonic_synthsizer = WavetableSynthesizer(
-            sampling_rate, self.wavetables, block_size, is_lpf=is_lpf)
+        self.harmonic_synthsizer = WavetableSynthesizer(sampling_rate, self.wavetables, block_size, is_lpf=is_lpf)
 
     def forward(self, mel, initial_phase=None):
         '''
@@ -286,14 +251,12 @@ class DWS(nn.Module):
         B, n_frames, _ = pitch.shape
 
         # harmonic
-        harmonic, final_phase = self.harmonic_synthsizer(
-            pitch, amplitudes, initial_phase)
+        harmonic, final_phase = self.harmonic_synthsizer(pitch, amplitudes, initial_phase)
 
         # noise part
         noise = torch.rand_like(harmonic).to(noise_param) * 2 - 1
-        noise = frequency_filter(
-                        noise,
-                        noise_param)
+        noise = frequency_filter(noise, noise_param)
+
         signal = harmonic + noise
 
         return signal, f0, final_phase, (harmonic, noise)
@@ -301,9 +264,7 @@ class DWS(nn.Module):
 
 
 class SawSub(nn.Module):
-    def __init__(self, 
-            sampling_rate,
-            block_size,):
+    def __init__(self, sampling_rate, block_size,):
         super().__init__()
 
         print(' [Model] Sawtooth Subtractive Synthesiser')
@@ -347,15 +308,12 @@ class SawSub(nn.Module):
 
         # harmonic
         harmonic, final_phase = self.harmonic_synthsizer(pitch, initial_phase)
-        harmonic= frequency_filter(
-                        harmonic,
-                        src_param)
+        harmonic= frequency_filter(harmonic, src_param)
 
         # noise part
         noise = torch.rand_like(harmonic).to(noise_param) * 2 - 1
-        noise = frequency_filter(
-                        noise,
-                        noise_param)
+        noise = frequency_filter(noise, noise_param)
+
         signal = harmonic + noise
 
         return signal, f0, final_phase, (harmonic, noise)

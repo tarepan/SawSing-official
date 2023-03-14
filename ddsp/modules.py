@@ -133,12 +133,7 @@ class WaveGeneratorOscillator(nn.Module):
         synthesize audio with a sawtooth oscillator.
         the sawtooth oscillator is synthesized by a bank of sinusoids
     """
-    def __init__(
-            self, 
-            fs, 
-            amplitudes,
-            ratio,
-            is_remove_above_nyquist=True):
+    def __init__(self, fs, amplitudes, ratio, is_remove_above_nyquist=True):
         super().__init__()
         self.fs = fs
         self.is_remove_above_nyquist = is_remove_above_nyquist

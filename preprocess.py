@@ -66,9 +66,7 @@ class Audio2Mel(torch.nn.Module):
         n_fft = win_length if n_fft is None else n_fft
 
         window = torch.hann_window(win_length).float()
-        mel_basis = librosa_mel_fn(
-            sampling_rate, n_fft, n_mel_channels, mel_fmin, mel_fmax
-        )
+        mel_basis = librosa_mel_fn(sampling_rate, n_fft, n_mel_channels, mel_fmin, mel_fmax)
         mel_basis = torch.from_numpy(mel_basis).float()
 
         self.register_buffer("mel_basis", mel_basis)
@@ -86,15 +84,7 @@ class Audio2Mel(torch.nn.Module):
         '''
         B, C, T = audio.shape
         audio = audio.reshape(B * C, T)
-        fft = torch.stft(
-            audio,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            win_length=self.win_length,
-            window=self.window,
-            center=False,
-            return_complex=False,
-        )
+        fft = torch.stft(audio, n_fft=self.n_fft, hop_length=self.hop_length, win_length=self.win_length, window=self.window, center=False, return_complex=False)
         real_part, imag_part = fft.unbind(-1)
         magnitude = torch.sqrt(real_part ** 2 + imag_part ** 2)
         mel_output = torch.matmul(self.mel_basis, magnitude)
@@ -122,19 +112,10 @@ def process_mel(
         dst_ext):
 
     # list files
-    filelist =  traverse_dir(
-        path_srcdir,
-        extension=(src_ext),
-        is_pure=True,
-        is_sort=True,
-        is_ext=False)
+    filelist =  traverse_dir(path_srcdir, extension=(src_ext), is_pure=True, is_sort=True, is_ext=False)
 
     # initilize extractor
-    mel_extractor = Audio2Mel(
-        hop_length=hop_length,
-        sampling_rate=sampling_rate,
-        n_mel_channels=n_mel_channels,
-        win_length=win_length).to(device)
+    mel_extractor = Audio2Mel(hop_length=hop_length, sampling_rate=sampling_rate, n_mel_channels=n_mel_channels, win_length=win_length).to(device)
 
     # run
     n_file = len(filelist)
@@ -187,14 +168,5 @@ if __name__ == '__main__':
             print(f'=== {v} - {s} =============')
             path_srcdir  = os.path.join(path_rootdir, v, s, 'audio')
             path_dstdir  = os.path.join(path_rootdir, v, s, 'mel')
-            process_mel(
-                path_srcdir, 
-                path_dstdir, 
-                device,
-                sampling_rate,
-                hop_length,
-                win_length,
-                n_mel_channels,
-                src_ext,
-                dst_ext)
+            process_mel(path_srcdir, path_dstdir, device, sampling_rate, hop_length, win_length, n_mel_channels, src_ext, dst_ext)
     
