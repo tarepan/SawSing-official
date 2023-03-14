@@ -50,19 +50,16 @@ python main.py --config ./configs/sawsinsub.yaml \
 You can specify the model with `--model` argument.  
 Currently this repository support 5 ***harmonic plus noise*** vocoders[4] (3 in the paper, 2 not):
 
-| Model Name (in the paper) | Synthesizer                                                                | Note                        |
-|:-------------------------:|:--------------------------------------------------------------------------:|:---------------------------:|
-| `SawSinSub` (SawSing)     | Filtered Sawtooth Synthesizer </br>(Appproximated by Harmonic Synthesizer) | from SawSing paper          |
-| `SawSub`                  | Filtered Sawtooth Synthesizer                                              | modified from SawSing paper |
-| `Sins` (DDSP-Add)         | Harmonic Synthesizer                                                       | from DDSP paper             |
-| `Full`                    | Filtered Harmonic Synthesizer                                              | modified from DDSP paper    |
-| `DWS`  (DWTS)             | Wavetable Synthesizer                                                      | [3]                         |
+| Model Name (in the paper) | Harmonics Synthesizer                        | Note                        |
+|:-------------------------:|:--------------------------------------------:|:---------------------------:|
+| `SawSub`                  | Subtracted       Sawtooth (exact)            | modified from SawSing paper |
+| `SawSinSub` (SawSing)     | Subtracted       Sawtooth (additive approx.) | from SawSing paper          |
+| `Sins`      (DDSP-Add)    |            Added sinusoids                   | from DDSP paper             |
+| `Full`                    | Subtracted Added sinusoids                   | modified from DDSP paper    |
+| `DWS`       (DWTS)        | Wavetable                                    | [3]                         |
 
-Sawtooth synthesizer variants have below difference:
 
-- `SawSub`: generate source signals with sawtooth waveform generator without anti-aliasing
-- `SawSinSub`: the anti-aliased version of `SawSub`. It uses "Harmonic Synthesizer" with predefined coefficients of harmonics to approximate sawtooth waveform.  
-
+`SawSinSub` differ from `SawSub` in that it approximate Sawtooth with band-limited addtive sinusoids. This works as anti-aliasing.  
 More details of syntehsizers, refet to [synthesizer_demo](./synth_demo.ipynb).  
 
 [3] (ICASSP'22)[Differentiable Wavetable Synthesis](https://arxiv.org/abs/2111.10003)  

@@ -28,6 +28,8 @@ class WavetableSynthesizer(nn.Module):
 
     def forward(self, f0_frames, amplitudes_frames, initial_phase=None):
         '''
+        ※Caution※ fo is detached.
+
                     f0_frames: B x n_frames x 1 (Hz)
             amplitudes_frames: B x n_frames x num_wavetables
                 initial_phase: B x 1 x 1
@@ -94,6 +96,8 @@ class HarmonicOscillator(nn.Module):
 
     def forward(self, f0, amplitudes, initial_phase=None):
         '''
+        ※Caution※ fo is detached.
+
                     f0: B x T x 1 (Hz)
             amplitudes: B x T x n_harmonic
          initial_phase: B x 1 x 1
@@ -143,6 +147,8 @@ class WaveGeneratorOscillator(nn.Module):
         
     def forward(self, f0, initial_phase=None):
         '''
+        ※Caution※ fo is detached.
+
                     f0: B x T x 1 (Hz)
          initial_phase: B x 1 x 1
           ---
@@ -186,6 +192,8 @@ class SawtoothGenerator(nn.Module):
 
     def forward(self, f0, initial_phase=None):
         '''
+        ※Caution※ fo is detached.
+
                     f0: B x T x 1 (Hz)
             amplitudes: B x T x 1
          initial_phase: B x 1 x 1

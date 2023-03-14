@@ -9,7 +9,17 @@ from .pcmer import PCmer
 
 
 def split_to_dict(tensor, tensor_splits):
-    """Split a tensor into a dictionary of multiple tensors."""
+    """Split a tensor into a dictionary of multiple tensors.
+    
+    Args:
+        tensor
+        tensor_splits
+    Returns:
+        Dict
+            k: split(tensor)[i]
+                k                - Key specified in `tensor_splits`
+                split(tensor)[i] - Split of `tensor`, size `v` specified in `tensor_splits`)            
+    """
     labels = []
     sizes = []
 
@@ -23,6 +33,10 @@ def split_to_dict(tensor, tensor_splits):
 
 class Mel2Control(nn.Module):
     def __init__(self, input_channel, output_splits):
+        """
+        Args:
+            output_splits :: list[] - Tensor split specifiers
+        """
         super().__init__()
         self.output_splits = output_splits
 
