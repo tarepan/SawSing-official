@@ -19,6 +19,7 @@ from .core import scale_function, unit_to_hz2, frequency_filter, upsample
 
 
 class Full(nn.Module):
+    """Feature analyzer + Subtracted added sinusoids + Subtracted noise."""
     def __init__(self, sampling_rate, block_size, n_mag_harmonic, n_mag_noise, n_harmonics, n_mels=80):
         """
         Args:
@@ -65,7 +66,7 @@ class Full(nn.Module):
         amplitudes = upsample(amp, self.block_size)
 
         # sDSP
-        ## harmonic
+        ## SubAddHarmo
         base_harmo, final_phase = self.harmonic_synthsizer(pitch, amplitudes, initial_phase)
         colored_harmo = frequency_filter(base_harmo, src_param)
         ## SubNoise
@@ -78,6 +79,7 @@ class Full(nn.Module):
 
 
 class SawSinSub(nn.Module):
+    """Feature analyzer + Subtracted sawtooth (sinusoid approx.) + Subtracted noise."""
     def __init__(self, sampling_rate, block_size, n_mag_harmonic, n_mag_noise, n_harmonics, n_mels=80):
         super().__init__()
         print(' [Model] Sawtooth (with sinusoids) Subtractive Synthesiser')
@@ -123,6 +125,7 @@ class SawSinSub(nn.Module):
 
 
 class Sins(nn.Module):
+    """Feature analyzer + Added sinusoids + Subtracted noise."""
     def __init__(self, sampling_rate, block_size, n_harmonics, n_mag_noise, n_mels=80):
         super().__init__()
         print(' [Model] Sinusoids Synthesiser')
@@ -168,6 +171,7 @@ class Sins(nn.Module):
 
 
 class DWS(nn.Module):
+    """Feature analyzer + Wavetable + Subtracted noise."""
     def __init__( self, sampling_rate, block_size, num_wavetables, len_wavetables, is_lpf=False):
         super().__init__()
         print(' [Model] Wavetables Synthesiser, is_lpf:', is_lpf)
@@ -202,7 +206,7 @@ class DWS(nn.Module):
         amplitudes *= A
 
         # sDSP
-        ## harmonic
+        ## Wavetable
         colored_harmo, final_phase = self.harmonic_synthsizer(pitch, amplitudes, initial_phase)
         ## SubNoise
         base_noise = torch.rand_like(colored_harmo).to(noise_param) * 2 - 1
@@ -213,8 +217,8 @@ class DWS(nn.Module):
         return signal, f0, final_phase, (colored_harmo, colored_noise)
 
 
-
 class SawSub(nn.Module):
+    """Feature analyzer + Subtracted sawtooth (exact, w/ aliasing) + Subtracted noise."""
     def __init__(self, sampling_rate, block_size,):
         super().__init__()
         print(' [Model] Sawtooth Subtractive Synthesiser')

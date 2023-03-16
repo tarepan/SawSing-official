@@ -3,14 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 import numpy as np
 
-from .core import fft_convolve, linear_lookup, upsample, remove_above_nyquist
-
-
-def safe_division(a, b, eps=1e-9):
-    mask = (b <= eps)
-    c = a/b
-    c[mask] = 0.0
-    return c
+from .core import linear_lookup, upsample, remove_above_nyquist
 
 
 class WavetableSynthesizer(nn.Module):
@@ -133,10 +126,7 @@ class HarmonicOscillator(nn.Module):
 
 
 class WaveGeneratorOscillator(nn.Module):
-    """
-        synthesize audio with a sawtooth oscillator.
-        the sawtooth oscillator is synthesized by a bank of sinusoids
-    """
+    """Additive harmonics synthesizer."""
     def __init__(self, fs, amplitudes, ratio, is_remove_above_nyquist=True):
         super().__init__()
         self.fs = fs
@@ -149,15 +139,17 @@ class WaveGeneratorOscillator(nn.Module):
         '''
         ※Caution※ fo is detached.
 
-                    f0: B x T x 1 (Hz)
-         initial_phase: B x 1 x 1
-          ---
-              signal: B x T
-         final_phase: B x 1 x 1
+        Args:
+            f0            :: (B, T,   Partial=1) - f0 contour [Hz]
+            initial_phase :: (B, T=1, Partial=1) - Initial phase, time-invariant
+        Returns:
+            signal        :: (B, T)
+            final_phase   :: (B, T=1, Harmo=1) - Progressed phase (T=last), detached
         '''
         if initial_phase is None:
             initial_phase = torch.zeros(f0.shape[0], 1, 1).to(f0)
         
+        # ※Caution※ fo is detached.
         mask = (f0 > 0).detach()
         f0 = f0.detach()
 
