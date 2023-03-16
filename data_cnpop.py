@@ -64,8 +64,8 @@ def get_data_loaders(args, whole_audio=False):
     """
     data_train = AudioDataset(args.data.train_path, waveform_sec=args.data.duration, hop_size=args.data.block_size, sample_rate=args.data.sampling_rate, whole_audio=whole_audio)
     data_valid = AudioDataset(args.data.valid_path, waveform_sec=args.data.duration, hop_size=args.data.block_size, sample_rate=args.data.sampling_rate, whole_audio=True)
-    loader_train = torch.utils.data.DataLoader(data_train, batch_size=args.train.batch_size if not whole_audio else 1, shuffle=False, num_workers=2, pin_memory=True)
-    loader_valid = torch.utils.data.DataLoader(data_valid, batch_size=1,                                               shuffle=False, num_workers=1, pin_memory=True)
+    loader_train = torch.utils.data.DataLoader(data_train, batch_size=args.train.batch_size if not whole_audio else 1, shuffle=False, num_workers=2, pin_memory=True, drop_last=True)
+    loader_valid = torch.utils.data.DataLoader(data_valid, batch_size=1,                                               shuffle=False, num_workers=1, pin_memory=True, drop_last=True)
     return loader_train, loader_valid 
 
 
