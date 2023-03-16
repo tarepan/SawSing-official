@@ -10,63 +10,6 @@ import torch.nn.functional as F
 import fast_transformers.causal_product.causal_product_cuda
 
 
-def softmax_kernel(data, *, projection_matrix, is_query, normalize_data=True, eps=1e-4, device = None):
-    b, h, *_ = data.shape
-    # (batch size, head, length, model_dim)
-
-    # normalize model dim
-    data_normalizer = (data.shape[-1] ** -0.25) if normalize_data else 1.
-
-    # what is ration?, projection_matrix.shape[0] --> 266
-    
-    ratio = (projection_matrix.shape[0] ** -0.5)
-
-    projection = repeat(projection_matrix, 'j d -> b h j d', b = b, h = h)
-    projection = projection.type_as(data)
-
-    #data_dash = w^T x
-    data_dash = torch.einsum('...id,...jd->...ij', (data_normalizer * data), projection)
-
-    
-    # diag_data = D**2 
-    diag_data = data ** 2
-    diag_data = torch.sum(diag_data, dim=-1)
-    diag_data = (diag_data / 2.0) * (data_normalizer ** 2)
-    diag_data = diag_data.unsqueeze(dim=-1)
-    
-    #print ()
-    if is_query:
-        data_dash = ratio * (
-            torch.exp(data_dash - diag_data -
-                    torch.max(data_dash, dim=-1, keepdim=True).values) + eps)
-    else:
-        data_dash = ratio * (
-            torch.exp(data_dash - diag_data + eps))#- torch.max(data_dash)) + eps)
-
-    return data_dash.type_as(data)
-
-def _orthogonal_matrix_chunk(cols, qr_uniform_q = False, device = None):
-    unstructured_block = torch.randn((cols, cols), device = device)
-    q, r = torch.qr(unstructured_block.cpu(), some = True)
-    q, r = map(lambda t: t.to(device), (q, r))
-
-    # proposed by @Parskatt
-    # to make sure Q is uniform https://arxiv.org/pdf/math-ph/0609050.pdf
-    if qr_uniform_q:
-        d = torch.diag(r, 0)
-        q *= d.sign()
-    return q.t()
-
-def exists(val):
-    return val is not None
-
-def empty(tensor):
-    return tensor.numel() == 0
-
-def default(val, d):
-    return val if exists(val) else d
-
-
 class PCmer(nn.Module):
     """The encoder that is used in the Transformer model."""
     
@@ -90,17 +33,12 @@ class PCmer(nn.Module):
 
 
 class _EncoderLayer(nn.Module):
-    """Encoder layer of .
-    
-    Attributes:
-        attn: (:class:`mha.MultiHeadAttention`): The attention mechanism that is used to read the input sequence.
-        feed_forward (:class:`ffl.FeedForwardLayer`): The feed-forward layer on top of the attention mechanism.
-    """
+    """Encoder layer of PCmer."""
     
     def __init__(self, parent: PCmer):
         """        
         Args:
-            parent (Encoder): The encoder that the layers is created for.
+            parent - The encoder that the layers is created for, containing parameters
         """
         super().__init__()
 
@@ -113,7 +51,6 @@ class _EncoderLayer(nn.Module):
         phone = phone + self.attn(self.norm(phone), mask=mask)
         phone = phone + self.conformer(phone)
         return phone 
-
 
 
 #### ConformerConvModule #############################################################
@@ -190,6 +127,27 @@ class ConformerConvModule(nn.Module):
 
 
 #### Attention #######################################################################
+def _orthogonal_matrix_chunk(cols, qr_uniform_q = False, device = None):
+    unstructured_block = torch.randn((cols, cols), device = device)
+    q, r = torch.qr(unstructured_block.cpu(), some = True)
+    q, r = map(lambda t: t.to(device), (q, r))
+
+    # proposed by @Parskatt
+    # to make sure Q is uniform https://arxiv.org/pdf/math-ph/0609050.pdf
+    if qr_uniform_q:
+        d = torch.diag(r, 0)
+        q *= d.sign()
+    return q.t()
+
+def exists(val):
+    return val is not None
+
+def empty(tensor):
+    return tensor.numel() == 0
+
+def default(val, d):
+    return val if exists(val) else d
+
 def _linear_attention(q, k, v):
     if v is None:
         #print (k.size(), q.size())
@@ -234,6 +192,41 @@ def _gaussian_orthogonal_random_matrix(nb_rows, nb_columns, scaling = 0, qr_unif
         raise ValueError(f'Invalid scaling {scaling}')
 
     return torch.diag(multiplier) @ final_matrix
+
+def _softmax_kernel(data, *, projection_matrix, is_query, normalize_data=True, eps=1e-4, device = None):
+    b, h, *_ = data.shape
+    # (batch size, head, length, model_dim)
+
+    # normalize model dim
+    data_normalizer = (data.shape[-1] ** -0.25) if normalize_data else 1.
+
+    # what is ration?, projection_matrix.shape[0] --> 266
+    
+    ratio = (projection_matrix.shape[0] ** -0.5)
+
+    projection = repeat(projection_matrix, 'j d -> b h j d', b = b, h = h)
+    projection = projection.type_as(data)
+
+    #data_dash = w^T x
+    data_dash = torch.einsum('...id,...jd->...ij', (data_normalizer * data), projection)
+
+    
+    # diag_data = D**2 
+    diag_data = data ** 2
+    diag_data = torch.sum(diag_data, dim=-1)
+    diag_data = (diag_data / 2.0) * (data_normalizer ** 2)
+    diag_data = diag_data.unsqueeze(dim=-1)
+    
+    #print ()
+    if is_query:
+        data_dash = ratio * (
+            torch.exp(data_dash - diag_data -
+                    torch.max(data_dash, dim=-1, keepdim=True).values) + eps)
+    else:
+        data_dash = ratio * (
+            torch.exp(data_dash - diag_data + eps))#- torch.max(data_dash)) + eps)
+
+    return data_dash.type_as(data)
 
 
 class FastAttention(nn.Module):
@@ -282,7 +275,7 @@ class FastAttention(nn.Module):
             q, k = map(create_kernel, (q, k))
 
         else:
-            create_kernel = partial(softmax_kernel, projection_matrix = self.projection_matrix, device = device)
+            create_kernel = partial(_softmax_kernel, projection_matrix = self.projection_matrix, device = device)
             
             q = create_kernel(q, is_query = True)
             k = create_kernel(k, is_query = False)
