@@ -10,12 +10,12 @@ import numpy as np
 def _logb(x):
     """Logarithm with base as an argument."""
     base=2.0
-    return torch.log(torch.tensor(x)) / torch.log(torch.tensor(base))    
+    return torch.log(x) / torch.log(torch.tensor(base))
 
 
 def _hz_to_midi(frequencies: float):
     """TF-compatible hz_to_midi function."""
-    notes = 12.0 * (_logb(frequencies) - _logb(torch.tensor(440.0).float())) + 69.0
+    notes = 12.0 * (_logb(torch.tensor(frequencies).float()) - _logb(torch.tensor(440.0).float())) + 69.0
     # Map 0 Hz to MIDI 0 (Replace -inf MIDI with 0.)
     notes = F.relu(notes)
     #notes = notes.double()
