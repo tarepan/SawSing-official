@@ -26,7 +26,6 @@ class Saver(object):
             initial_global_step=-1):
 
         self.expdir = args.env.expdir
-        exists_ok = True if self.expdir == 'test' else False
 
         # cold start
         self.global_step = initial_global_step
@@ -34,7 +33,7 @@ class Saver(object):
         self.last_time = time.time()
 
         # makedirs
-        os.makedirs(self.expdir, exist_ok=exists_ok)       
+        os.makedirs(self.expdir, exist_ok=True)       
 
         # path
         self.path_log_value = os.path.join(self.expdir, 'log_value.txt')
@@ -42,7 +41,7 @@ class Saver(object):
 
         # ckpt
         self.path_ckptdir = os.path.join(self.expdir, 'ckpts')
-        os.makedirs(self.path_ckptdir, exist_ok=exists_ok)       
+        os.makedirs(self.path_ckptdir, exist_ok=True)       
 
         # figs
         self.path_figdir = os.path.join(self.expdir, 'figs')
