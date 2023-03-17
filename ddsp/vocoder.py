@@ -17,6 +17,14 @@ from .core import scale_function, unit_to_hz2, frequency_filter, upsample
 #   - WaveGeneratorOscillator : SawSinSub
 #   - SawtoothGenerator       : SawSub
 
+# TODO: [f0 bug]
+# Theoretically, `f0<80` never happen because f0 is in (80, 1000).
+# But when `sigmoid(f0_unscaled) < 4.4e-8`, it goes to `79.99999237060547...` and it is cut to 0 (maybe) because of numerical issue.
+# This enables 'proper' f0=zero learning practically,
+# but aNN is required to output super big negative number for f0=0[Hz] (this could be the reason of drastic fo loss behavior).
+# If we fix numerical issue, the bug will disappear but learning will fail.
+# So, we should totally replace this mechanism.
+
 
 class Full(nn.Module):
     """Feature analyzer + Subtracted added sinusoids + Subtracted noise."""
@@ -45,29 +53,30 @@ class Full(nn.Module):
         '''
 
         # aNN
+        ## Mixed NN
         ctrls = self.mel2ctrl(mel)
-        f0_unit, A, amp, harmo_mag, noise_mag = ctrls['f0'], ctrls['A'], ctrls['amplitudes'], ctrls['harmonic_magnitude'], ctrls['noise_magnitude']
+        f0_unscaled, noise_mag, harmo_mag, A, amp = ctrls['f0'], ctrls['noise_magnitude'], ctrls['harmonic_magnitude'], ctrls['A'], ctrls['amplitudes']
+        ## f0 :: (B, Frame, 1) - Fundamental tone's frequency contour [Hz] (0 or within (80, 1000))
+        f0 = unit_to_hz2(torch.sigmoid(f0_unscaled), hz_min = 80.0, hz_max=1000.0)
+        f0[f0<80] = 0
+        ## TODO: Fix bug. Check [f0 bug] in top of this file.
 
         # Feature transform
-        ## fo - scaling + upsampling
-        f0_unit = torch.sigmoid(f0_unit)
-        f0 = unit_to_hz2(f0_unit, hz_min = 80.0, hz_max=1000.0)
-        f0[f0<80] = 0
+        ## fo - upsampling
         pitch = upsample(f0, self.block_size)
-        ## harmonic magnitude - scaling
-        src_param   = scale_function(harmo_mag)
-        ## noise magnitude - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
         noise_param = scale_function(noise_mag)
-        ## amplitudes - scaling + ? + upsampling
-        A    = scale_function(A)
+        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling
+        src_param   = scale_function(harmo_mag)
+        ## amplitudes - normalized_partial_wise * global + upsampling
         amp  = scale_function(amp)
-        amp /= amp.sum(-1, keepdim=True) # to distribution
-        amp *= A
+        amp /= amp.sum(-1, keepdim=True) # - Normalized partial amplitudes
+        amp *= scale_function(A) # :: * (B, Frame, 1) - * Global amplitude
         amplitudes = upsample(amp, self.block_size)
 
         # sDSP
         ## SubAddHarmo
-        base_harmo, final_phase = self.harmonic_synthsizer(pitch, amplitudes, initial_phase)
+        base_harmo,    final_phase = self.harmonic_synthsizer(pitch, amplitudes, initial_phase)
         colored_harmo = frequency_filter(base_harmo, src_param)
         ## SubNoise
         base_noise = torch.rand_like(colored_harmo).to(noise_param) * 2 - 1
@@ -97,23 +106,25 @@ class SawSinSub(nn.Module):
         '''
 
         # aNN
+        ## Mixed NN
         ctrls = self.mel2ctrl(mel)
-        f0_unit, harmo_mag, noise_mag = ctrls['f0'], ctrls['harmonic_magnitude'], ctrls['noise_magnitude']
+        f0_unscaled, noise_mag, harmo_mag         = ctrls['f0'], ctrls['noise_magnitude'], ctrls['harmonic_magnitude']
+        ## f0 :: (B, Frame, 1) - Fundamental tone's frequency contour [Hz] (0 or within (80, 1000))
+        f0 = unit_to_hz2(torch.sigmoid(f0_unscaled), hz_min = 80.0, hz_max=1000.0)
+        f0[f0<80] = 0
+        ## TODO: Fix bug. Check [f0 bug] in top of this file.
 
         # Feature transform
-        ## fo - scaling + upsampling
-        f0_unit = torch.sigmoid(f0_unit)
-        f0 = unit_to_hz2(f0_unit, hz_min = 80.0, hz_max=1000.0)
-        f0[f0<80] = 0
+        ## fo - upsampling
         pitch = upsample(f0, self.block_size)
-        ## harmonic magnitude - scaling
-        src_param = scale_function(harmo_mag)
-        ## noise magnitude - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
         noise_param = scale_function(noise_mag)
+        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling
+        src_param   = scale_function(harmo_mag)
 
         # sDSP
         ## SubHarmo
-        base_harmo, final_phase = self.harmonic_synthsizer(pitch, initial_phase)
+        base_harmo,    final_phase = self.harmonic_synthsizer(pitch,             initial_phase)
         colored_harmo = frequency_filter(base_harmo, src_param)
         ## SubNoise
         base_noise = torch.rand_like(colored_harmo).to(noise_param) * 2 - 1
@@ -140,27 +151,29 @@ class Sins(nn.Module):
         '''
 
         # aNN
+        ## Mixed NN
         ctrls = self.mel2ctrl(mel)
-        f0_unit, A, amp, noise_mag = ctrls['f0'], ctrls['A'], ctrls['amplitudes'], ctrls['noise_magnitude']
+        f0_unscaled, noise_mag,            A, amp = ctrls['f0'], ctrls['noise_magnitude'],                              ctrls['A'], ctrls['amplitudes']
+        ## f0 :: (B, Frame, 1) - Fundamental tone's frequency contour [Hz] (0 or within (80, 1000))
+        f0 = unit_to_hz2(torch.sigmoid(f0_unscaled), hz_min = 80.0, hz_max=1000.0)
+        f0[f0<80] = 0
+        ## TODO: Fix bug. Check [f0 bug] in top of this file.
 
         # Feature transform
-        ## fo - scaling + upsampling
-        f0_unit = torch.sigmoid(f0_unit)
-        f0 = unit_to_hz2(f0_unit, hz_min = 80.0, hz_max=1000.0)
-        f0[f0<80] = 0
+        ## fo - upsampling
         pitch = upsample(f0, self.block_size)
-        ## noise_magnitude - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
         noise_param = scale_function(noise_mag)
-        ## amplitudes - scaling + ? + upsampling
-        A    = scale_function(A)
+        ## amplitudes - normalized_partial_wise * global + upsampling
         amp  = scale_function(amp)
-        amp /= amp.sum(-1, keepdim=True) # to distribution
-        amp *= A
+        amp /= amp.sum(-1, keepdim=True) # - Normalized partial amplitudes
+        amp *= scale_function(A) # :: * (B, Frame, 1) - * Global amplitude
         amplitudes = upsample(amp, self.block_size)
 
         # sDSP
         ## AddHarmo
         colored_harmo, final_phase = self.harmonic_synthsizer(pitch, amplitudes, initial_phase)
+        colored_harmo = colored_harmo
         ## SubNoise
         base_noise = torch.rand_like(colored_harmo).to(noise_param) * 2 - 1
         colored_noise = frequency_filter(base_noise, noise_param)
@@ -188,26 +201,28 @@ class DWS(nn.Module):
         '''
 
         # aNN
+        ## Mixed NN
         ctrls = self.mel2ctrl(mel)
-        f0_unit, A, amp, noise_mag = ctrls['f0'], ctrls['A'], ctrls['amplitudes'], ctrls['noise_magnitude']
+        f0_unscaled, noise_mag,            A, amp = ctrls['f0'], ctrls['noise_magnitude'],                              ctrls['A'], ctrls['amplitudes']
+        ## f0 :: (B, Frame, 1) - Fundamental tone's frequency contour [Hz] (0 or within (80, 1000))
+        f0 = unit_to_hz2(torch.sigmoid(f0_unscaled), hz_min = 80.0, hz_max=1000.0)
+        f0[f0<80] = 0
+        ## TODO: Fix bug. Check [f0 bug] in top of this file.
 
         # Feature transform
-        ## fo - scaling
-        f0_unit = torch.sigmoid(f0_unit)
-        f0 = unit_to_hz2(f0_unit, hz_min = 80.0, hz_max=1000.0)
-        f0[f0<80] = 0
+        ## fo - no modification
         pitch = f0
-        ## noise_magnitude - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
         noise_param = scale_function(noise_mag)
-        ## amplitudes - scaling + ?
-        A    = scale_function(A)
+        ## amplitudes - normalized_partial_wise * global
         amp  = scale_function(amp)
-        amp /= amp.sum(-1, keepdim=True) # to distribution
-        amplitudes *= A
+        amp /= amp.sum(-1, keepdim=True) # - Normalized partial amplitudes
+        amplitudes *= scale_function(A) # :: * (B, Frame, 1) - * Global amplitude
 
         # sDSP
         ## Wavetable
         colored_harmo, final_phase = self.harmonic_synthsizer(pitch, amplitudes, initial_phase)
+        colored_harmo = colored_harmo
         ## SubNoise
         base_noise = torch.rand_like(colored_harmo).to(noise_param) * 2 - 1
         colored_noise = frequency_filter(base_noise, noise_param)
@@ -243,23 +258,25 @@ class SawSub(nn.Module):
         """
 
         # aNN
+        ## Mixed NN
         ctrls = self.mel2ctrl(mel)
-        f0_unit, harmo_mag, noise_mag = ctrls['f0'], ctrls['harmonic_magnitude'], ctrls['noise_magnitude']
+        f0_unscaled, noise_mag, harmo_mag         = ctrls['f0'], ctrls['noise_magnitude'], ctrls['harmonic_magnitude']
+        ## f0 :: (B, Frame, 1) - Fundamental tone's frequency contour [Hz] (0 or within (80, 1000))
+        f0 = unit_to_hz2(torch.sigmoid(f0_unscaled), hz_min = 80.0, hz_max=1000.0)
+        f0[f0<80] = 0
+        ## TODO: Fix bug. Check [f0 bug] in top of this file.
 
         # Feature transform
-        ## fo - scaling + upsampling
-        f0_unit = torch.sigmoid(f0_unit)
-        f0 = unit_to_hz2(f0_unit, hz_min = 80.0, hz_max=1000.0)
-        f0[f0<80] = 0
+        ## fo - upsampling
         pitch = upsample(f0, self.block_size)
-        ## harmonic magnitude - scaling
-        src_param   = scale_function(harmo_mag)
-        ## noise magnitude - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
         noise_param = scale_function(noise_mag)
+        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling
+        src_param   = scale_function(harmo_mag)
 
         # sDSP
         ## SubHarmo
-        base_harmo, final_phase = self.harmonic_synthsizer(pitch, initial_phase)
+        base_harmo,    final_phase = self.harmonic_synthsizer(pitch,             initial_phase)
         colored_harmo = frequency_filter(base_harmo, src_param)
         ## SubNoise
         base_noise = torch.rand_like(colored_harmo).to(noise_param) * 2 - 1

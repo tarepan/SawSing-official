@@ -7,38 +7,35 @@ import numpy as np
 
 
 #### unit_to_hz2 ######################################################################################
-def _logb(x):
-    """Logarithm with base as an argument."""
-    base=2.0
-    return torch.log(x) / torch.log(torch.tensor(base))
-
-
 def _hz_to_midi(frequencies: float):
-    """TF-compatible hz_to_midi function."""
-    notes = 12.0 * (_logb(torch.tensor(frequencies).float()) - _logb(torch.tensor(440.0).float())) + 69.0
-    # Map 0 Hz to MIDI 0 (Replace -inf MIDI with 0.)
-    notes = F.relu(notes)
-    #notes = notes.double()
-    #frequencies = F.relu(frequencies)
-    #notes = torch.where(torch.less_equal(frequencies, torch.tensor(0.0)), torch.tensor(0.0), notes)
-    return notes.float()
-
+    """Scale linear frequency scale [Hz] to logarithmic MIDI scale [NoteNumber] (TF-compatible).
+    
+    Returns:
+        :: Tensor
+    """
+    freq, ref = torch.tensor(frequencies, dtype=torch.float), torch.tensor(440., dtype=torch.float)
+    # MIDI scale with non-negative rounding
+    return F.relu(12. * (torch.log2(freq) - torch.log2(ref)) + 69.)
 
 def _midi_to_hz(notes):
-  """TF-compatible midi_to_hz function."""
+    """Scale logarithmic MIDI scale [NoteNumber] to linear frequency scale [Hz] (TF-compatible).
+  
+    Args:
+        notes :: Tensor
+    """
   return 440.0 * (2.0**((notes - 69.0) / 12.0))
 
 
-def unit_to_hz2(unit, hz_min: float, hz_max: float) :
-    """Map unit interval [0, 1] to [hz_min, hz_max], scaling logarithmically.
-    
+def unit_to_hz2(unit, min_hz: float, max_hz: float) :
+    """Map `unit` ∈ (0, 1) to 'frequency' ∈ (min_hz, max_hz) logarithmically (linear interpolation in MIDI-scale).
+
     Args:
-        unit :: Tensor
+        unit :: Tensor - Value to be scaled, within (0, 1)
+    Returns:
+             :: Tensor - Value scaled, within (min_hz, max_hz)
     """
-    midi_max = _hz_to_midi(hz_max)
-    midi_min = _hz_to_midi(hz_min)
-    # [0, 1] -> [min_midi , max_midi] -> [min_hz, max_hz]
-    return _midi_to_hz(midi_min + (midi_max - midi_min) * unit)
+    min_midi, max_midi = _hz_to_midi(min_hz), _hz_to_midi(max_hz)
+    return _midi_to_hz(min_midi + (max_midi - min_midi) * unit)
 #### /unit_to_hz2 #####################################################################################
 
 

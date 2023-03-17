@@ -172,8 +172,10 @@ def train(args, model, loss_func, loader_train, loader_test):
     saver.log_info('--- model size ---')
     saver.log_info(utils.get_network_paras_amount({'model': model}))
 
-    # optimizer
+    # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.train.lr)
+    # Scheduler
+    ## No learning rate scheduler
 
     # run
     best_loss = np.inf
