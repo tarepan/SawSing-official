@@ -192,14 +192,10 @@ def train(args, model, loss_func, loader_train, loader_test):
                 if k != 'name':
                     data[k] = data[k].to(args.device).float()
             
-            # Forward/Loss
+            # Forward/Loss/Backward/Optim
             optimizer.zero_grad()
             signal, f0_pred, _, _,  = model(data['mel'])
             loss, (loss_mss, loss_f0) = loss_func(signal, data['audio'], f0_pred, data['f0'])
-            # Nan check
-            if torch.isnan(loss):
-                raise ValueError(' [x] nan loss ')
-            # Backward/Optim
             loss.backward()
             optimizer.step()
 
