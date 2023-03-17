@@ -64,9 +64,9 @@ class Full(nn.Module):
         # Feature transform
         ## fo - upsampling
         pitch = upsample(f0, self.block_size)
-        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling to (0, 2)
         noise_param = scale_function(noise_mag)
-        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling
+        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling to (0, 2)
         src_param   = scale_function(harmo_mag)
         ## amplitudes - normalized_partial_wise * global + upsampling
         amp  = scale_function(amp)
@@ -117,9 +117,9 @@ class SawSinSub(nn.Module):
         # Feature transform
         ## fo - upsampling
         pitch = upsample(f0, self.block_size)
-        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling to (0, 2)
         noise_param = scale_function(noise_mag)
-        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling
+        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling to (0, 2)
         src_param   = scale_function(harmo_mag)
 
         # sDSP
@@ -162,7 +162,7 @@ class Sins(nn.Module):
         # Feature transform
         ## fo - upsampling
         pitch = upsample(f0, self.block_size)
-        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling to (0, 2)
         noise_param = scale_function(noise_mag)
         ## amplitudes - normalized_partial_wise * global + upsampling
         amp  = scale_function(amp)
@@ -212,7 +212,7 @@ class DWS(nn.Module):
         # Feature transform
         ## fo - no modification
         pitch = f0
-        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling to (0, 2)
         noise_param = scale_function(noise_mag)
         ## amplitudes - normalized_partial_wise * global
         amp  = scale_function(amp)
@@ -269,9 +269,9 @@ class SawSub(nn.Module):
         # Feature transform
         ## fo - upsampling
         pitch = upsample(f0, self.block_size)
-        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling
+        ## noise magnitude :: (B, Frame, n_mag_noise) - scaling to (0, 2)
         noise_param = scale_function(noise_mag)
-        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling
+        ## harmonic magnitude :: (B, Frame, n_mag_harmonic) - scaling to (0, 2)
         src_param   = scale_function(harmo_mag)
 
         # sDSP

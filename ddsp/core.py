@@ -65,6 +65,10 @@ def remove_above_nyquist(amplitudes, pitch, sampling_rate):
 
 
 def scale_function(x):
+    """
+                 σ          **log         *2
+    (-inf, +inf) -> (0, 1) ------> (0, 1) --> (0, 2)
+    """
     return 2 * torch.sigmoid(x)**(np.log(10)) + 1e-7
 #### /Common functions ################################################################################
 
