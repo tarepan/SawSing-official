@@ -11,16 +11,13 @@ class HybridLoss(nn.Module):
         super().__init__()
         self.loss_mss_func = MSSLoss(n_ffts)
         self.f0_loss_func = F0L1Loss()
-        # NOTE: Not used now
-        # self.fo_slow_loss_func = F0SlowLoss()
 
     def forward(self, y_pred, y_true, f0_pred, f0_true):
         loss_mss = self.loss_mss_func(y_pred, y_true)
-        loss_f0 = self.f0_loss_func(f0_pred, f0_true)
-        # loss_f0_slow = self.fo_slow_loss_func(f0_pred)
-        loss = loss_mss + loss_f0 # + loss_f0_slow
+        loss_f0  = self.f0_loss_func(f0_pred, f0_true)
+        loss = loss_mss + loss_f0
 
-        return loss, (loss_mss, loss_f0) #, loss_f0_slow)
+        return loss, (loss_mss, loss_f0)
 
 
 class SSSLoss(nn.Module):
@@ -38,19 +35,8 @@ class SSSLoss(nn.Module):
         self.name = name
     def forward(self, x_true, x_pred):
         min_len = np.min([x_true.shape[1], x_pred.shape[1]])
-        
-        # print('--------')
-        # print(min_len)
-        # print('x_pred:', x_pred.shape)
-        # print('x_true:', x_true.shape)
-
         x_true = x_true[:, -min_len:]
         x_pred = x_pred[:, -min_len:]
-
-        # print('x_pred:', x_pred.shape)
-        # print('x_true:', x_true.shape)
-        # print('--------\n\n\n')
-
         S_true = self.spec(x_true)
         S_pred = self.spec(x_pred)
         linear_term = F.l1_loss(S_pred, S_true)
@@ -92,30 +78,36 @@ class MSSLoss(nn.Module):
 
 
 class F0L1Loss(nn.Module):
-    """
-    crepe loss with pretrained model
-    """
-
-    def __init__(self, name = 'F0L1Loss'):
+    """L1 loss between log fo, with learning scheduler."""
+    def __init__(self):
         super().__init__()
+        # Loss scheduler (step-based)
         self.iteration = 0
-    def forward(self, f0_predict, f0_hz_true):
 
-        # print('pitch pred:', f0_predict[0,:])
-        # print('pitch anno:', f0_hz_true[0,:])
+    def forward(self, f0_predict, f0_hz_true):
+        """
+        Args:
+            f0_predict :: (B, Frame, 1)
+            f0_hz_true :: (B, Frame, 1)
+        """
         self.iteration += 1
         
         if (len(f0_hz_true.size()) != 3):
             f0_hz_true = f0_hz_true.unsqueeze(-1)
-        
+
+        # No loss if almost all parts of contour is too-low frequency (<50Hz)
         if torch.sum(f0_hz_true>=50) < 10:
             return torch.tensor(0.0)
+
+        # loss: L1(log(pred), log(gt))
         if self.iteration > 5000:
+            # Stop gradient in too-low frequency (<50Hz) area by replacing prediction as 0
             f0_predict = torch.where(f0_hz_true<50, f0_predict*0.0, f0_predict)
             loss = F.l1_loss(torch.log(f0_hz_true+1e-3), torch.log(f0_predict+1e-3), reduction='sum')
             loss = loss / torch.sum(f0_hz_true>=50)
         else:
             loss = F.l1_loss(torch.log(f0_hz_true+1e-3), torch.log(f0_predict+1e-3), reduction='mean')
+
         return torch.sum(loss)
 
 

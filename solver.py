@@ -187,15 +187,15 @@ def train(args, model, loss_func, loader_train, loader_test):
         for batch_idx, data in enumerate(loader_train):
             saver.global_step_increment()
 
-            # Batch unpacking
-            for k in data.keys():
-                if k != 'name':
-                    data[k] = data[k].to(args.device).float()
-            
+            # Data
+            mel_gt  = data['mel'  ].float().to(args.device)
+            wave_gt = data['audio'].float().to(args.device)
+            fo_gt   = data['f0'   ].float().to(args.device)
+
             # Forward/Loss/Backward/Optim
             optimizer.zero_grad()
-            signal, f0_pred, _, _,  = model(data['mel'])
-            loss, (loss_mss, loss_f0) = loss_func(signal, data['audio'], f0_pred, data['f0'])
+            wave_pred, f0_pred, _, _,  = model(mel_gt)
+            loss, (loss_mss, loss_f0) = loss_func(wave_pred, wave_gt, f0_pred, fo_gt)
             loss.backward()
             optimizer.step()
 
@@ -209,7 +209,7 @@ def train(args, model, loss_func, loader_train, loader_test):
                 ))
                 saver.log_info(' > mss loss: {:.6f}, f0: {:.6f}'.format(loss_mss.item(), loss_f0.item()))
                 # Waveform statistics - min/max, mean, RMS
-                y, s = signal, data['audio']
+                y, s = wave_pred, wave_gt
                 saver.log_info(
                     "pred: max:{:.5f}, min:{:.5f}, mean:{:.5f}, rms: {:.5f}\n" \
                     "anno: max:{:.5f}, min:{:.5f}, mean:{:.5f}, rms: {:.5f}".format(
